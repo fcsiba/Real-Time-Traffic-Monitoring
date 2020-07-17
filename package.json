@@ -10,11 +10,18 @@
     "lint": "eslint ."
   },
   "dependencies": {
+    "native-base": "^2.13.12",
     "react": "16.13.1",
     "react-native": "0.63.0",
     "react-native-cli": "^2.0.1",
+    "react-native-elements": "^2.0.4",
+    "react-native-gesture-handler": "^1.6.1",
     "react-native-openalpr": "^2.1.1",
-    "react-native-permissions": "^2.1.5"
+    "react-native-permissions": "^2.1.5",
+    "react-native-reanimated": "^1.9.0",
+    "react-native-router-flux": "^4.2.0",
+    "react-native-screens": "^2.9.0",
+    "react-native-vector-icons": "^7.0.0"
   },
   "devDependencies": {
     "@babel/core": "^7.8.4",
