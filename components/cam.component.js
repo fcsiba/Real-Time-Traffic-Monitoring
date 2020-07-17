@@ -1,0 +1,440 @@
+import React, {Component} from 'react';
+import {
+    StyleSheet,
+    Text,
+    View,
+    TouchableOpacity,
+    Switch,
+    Picker,
+    StatusBar,
+    ScrollView,
+    Platform,
+    Image,
+    Dimensions,
+    AsyncStorage
+  } from 'react-native'
+  import Camera, {
+    Aspect,
+    CaptureQuality,
+    TorchMode,
+    RotateMode,
+    takePicture,
+  } from 'react-native-openalpr'
+  import { check, request, PERMISSIONS, RESULTS } from 'react-native-permissions'
+  import { Header, ButtonGroup, Icon } from 'react-native-elements';
+  import { Actions } from 'react-native-router-flux';
+
+  const cameraPermission = Platform.select({
+    ios: PERMISSIONS.IOS.CAMERA,
+    android: PERMISSIONS.ANDROID.CAMERA,
+  })
+  
+  const styles = StyleSheet.create({
+    container: {
+      flex: 1,
+    },
+    camera: {
+      flex: 1,
+    },
+    options: {
+      position: 'absolute',
+      top: 100,
+      left: 20,
+      right: 20,
+      bottom: 20,
+      borderRadius: 10,
+      backgroundColor: 'white',
+    },
+    button: {
+      position: 'absolute',
+      right: -10,
+      top: 25,
+      color: 'white',
+      width: 80,
+      height: 80,
+      alignItems: 'center',
+    },
+    buttonText: {
+      fontSize: 40,
+      alignSelf: 'center',
+      color: '#ffffff',
+    },
+    plateText: {
+      position: 'absolute',
+      top: 100,
+      left: 20,
+      fontSize: 30,
+      color: '#00ff00',
+    },
+    confidenceText: {
+      position: 'absolute',
+      top: 100,
+      left: 250,
+      fontSize: 30,
+      color: '#fe4a49',
+    },
+    statusText: {
+      position: 'absolute',
+      top: 400,
+      left: 90,
+      fontSize: 50,
+      color: '#00ff00',
+    },
+    switchGroup: {
+      flex: 1,
+      flexDirection: 'row',
+      margin: 20,
+      marginBottom: 0,
+    },
+    switchText: {
+      flex: 1,
+      fontSize: 25,
+    },
+    switch: {
+      padding: 10,
+    },
+    pickerGroup: {},
+    pickerText: {
+      fontSize: 25,
+      paddingTop: 20,
+      textAlign: 'center',
+    },
+    picker: {
+      backgroundColor: '#eee',
+    },
+    takePicture: {
+      position: 'absolute',
+      bottom: 50,
+      right: 50,
+      borderRadius: 10,
+      backgroundColor: '#fe4a49',
+    },
+    takePictureText: {
+      color: 'white',
+      padding: 10,
+      fontSize: 20,
+    },
+    pictureWrapper: {
+      position: 'absolute',
+      top: 20,
+      left: 20,
+      right: 20,
+      bottom: 20,
+      backgroundColor: 'gray',
+      borderColor: 'white',
+      borderWidth: 1,
+    },
+    picture: {
+      transform: [{ rotate: '90deg' }],
+      width: Dimensions.get('screen').width - 42,
+      height: Dimensions.get('screen').height - 42,
+      resizeMode: 'contain',
+    },
+  })
+  
+  const MySwitch = ({ title, value, onValueChange }) => (
+    <View style={styles.switchGroup}>
+      <Text style={styles.switchText}>{title}</Text>
+      <Switch onValueChange={onValueChange} value={value} style={styles.switch} />
+    </View>
+  )
+  
+  const MyPicker = ({ title, selectedValue, values, onValueChange }) => (
+    <View style={styles.pickerGroup}>
+      <Text style={styles.pickerText}>{title}</Text>
+      <Picker
+        selectedValue={selectedValue}
+        onValueChange={onValueChange}
+        style={styles.picker}>
+        {values.map(({ label, value }) => (
+          <Picker.Item key={value} label={label} value={value} />
+        ))}
+      </Picker>
+    </View>
+  )
+  
+  const colorOptions = [
+    { label: 'Red', value: '#ff0000' },
+    { label: 'Green', value: '#00ff00' },
+    { label: 'Blue', value: '#0000ff' },
+  ]
+  
+  const aspectOptions = [
+    { label: 'Fill', value: Aspect.fill },
+    { label: 'Fit', value: Aspect.fit },
+    { label: 'Stretch', value: Aspect.stretch },
+  ]
+  
+  const qualityOptions = [
+    { label: 'Low', value: CaptureQuality.low },
+    { label: 'Medium', value: CaptureQuality.medium },
+    { label: 'High', value: CaptureQuality.high },
+  ]
+  
+  const zoomOptions = [
+    { label: '0%', value: 0 },
+    { label: '25%', value: 24 },
+    { label: '50%', value: 49 },
+    { label: '75%', value: 74 },
+    { label: '100%', value: 99 },
+  ]
+
+  const component1 = () => <Icon raised name='search' type='font-awesome' color='#2089dc' onPress={() => Actions.search()} />
+  const component2 = () => <Icon raised name='camera' type='font-awesome' color='#2089dc' onPress={() => Actions.cam()} />
+  const component3 = () => <Icon raised name='list' type='font-awesome' color='#2089dc' onPress={() => Actions.logs()} />
+
+export default class Cam extends Component{
+    state = {
+        showOptions: false,
+        plate: 'Point at a plate',
+        confidence: '',
+        error: null,
+        showCamera: false,
+        // Camera options
+        camera: {
+          aspect: Aspect.fill,
+        },
+        captureQuality: CaptureQuality.high,
+        aspect: CaptureQuality.stretch,
+        zoom: 0,
+        rotateMode: false,
+        torchMode: false,
+        showPlateOutline: true,
+        plateOutlineColor: '#ff0000',
+        country: 'eu',
+        touchToFocus: true,
+        status: '',
+        selectedIndex: 1
+      }
+    
+      async componentDidMount() {
+        this.checkPermission()
+      }
+    
+      async checkPermission() {
+        switch (await check(cameraPermission)) {
+          case RESULTS.UNAVAILABLE:
+            this.setState({
+              error:
+                'This feature is not available (on this device / in this context)',
+            })
+            break
+          case RESULTS.DENIED:
+            this.requestPermission()
+            break
+          case RESULTS.GRANTED:
+            this.setState({
+              showCamera: true,
+            })
+            break
+          case RESULTS.BLOCKED:
+            this.setState({
+              error: 'The permission is denied and not requestable anymore',
+            })
+            break
+        }
+      }
+    
+      async requestPermission() {
+        switch (await request(cameraPermission)) {
+          case RESULTS.UNAVAILABLE:
+            this.setState({
+              error:
+                'This feature is not available (on this device / in this context)',
+            })
+            break
+          case RESULTS.DENIED:
+            this.setState({
+              error: 'The permission has been denied',
+            })
+            break
+          case RESULTS.GRANTED:
+            this.setState({
+              showCamera: true,
+            })
+            break
+          case RESULTS.BLOCKED:
+            this.setState({
+              error: 'The permission is denied and not requestable anymore',
+            })
+            break
+        }
+      }
+    
+      updateStatus = async (status, obj) => {
+          this.setState({status});
+          let myArray = await AsyncStorage.getItem('dataarray');
+            if (myArray) {
+                myArray = JSON.parse(myArray);
+                console.log(myArray);
+            }
+            else{
+                console.log(myArray);
+                myArray = [];
+            }
+            obj.timestamp = (new Date()).toString();
+            myArray.push(obj);
+            await AsyncStorage.setItem('dataarray', JSON.stringify(myArray, null, 2));
+      }
+
+      onPlateRecognized = ({ plate, confidence }) => {
+        this.setState({
+          plate,
+          confidence,
+          status: ''
+        })
+        if(parseFloat(confidence)>=85){
+          const str = plate.substr(0, 3) + '-' + plate.substr(3, 3);
+          fetch('https://records-api-lhzq3o43pa-de.a.run.app/'+str).then(response => response.json())
+          .then((responseJson) => {
+              if(responseJson.data.length>0) {
+              responseJson.data[0].cplc_clear==1 ? 
+              this.updateStatus('CLEAR', responseJson.data[0]) :
+              this.updateStatus('NOT CLEAR', responseJson.data[0]);
+              }
+        });
+      }
+    }
+    
+      toggleOptions = () => this.setState({ showOptions: !this.state.showOptions })
+    
+      onTakePicturePress = async () => {
+        /*const picture = await takePicture({
+          width: 4032,
+          height: 3024,
+          quality: 0.8,
+        })
+        this.setState({
+          picture,
+        })*/
+      }
+    
+      onClosePicturePress = () =>
+        this.setState({
+          picture: null,
+        })
+
+        updateIndex = (selectedIndex) => {
+            this.setState({selectedIndex: selectedIndex})
+          }
+    
+      render() {
+        const buttons = [{ element: component1 }, { element: component2 }, { element: component3 }]
+        const {
+          showCamera,
+          error,
+          showOptions,
+          plate,
+          plateOutlineColor,
+          showPlateOutline,
+          captureQuality,
+          aspect,
+          zoom,
+          rotateMode,
+          torchMode,
+          country,
+          confidence,
+          touchToFocus,
+          picture,
+          status,
+          selectedIndex
+        } = this.state
+        return (
+          <View style={styles.container}>
+            {<Header
+                centerComponent={{ text: 'Camera Scanner', style: { color: '#fff', fontSize: 25 } }}
+              />}
+              {showCamera && (
+                <Camera
+                  style={styles.camera}
+                  aspect={aspect}
+                  captureQuality={captureQuality}
+                  zoom={zoom}
+                  country={country}
+                  onPlateRecognized={this.onPlateRecognized}
+                  plateOutlineColor={plateOutlineColor}
+                  showPlateOutline={showPlateOutline}
+                  torchMode={this.state.torchMode ? TorchMode.on : TorchMode.off}
+                  rotateMode={this.state.rotateMode ? RotateMode.on : RotateMode.off}
+                  touchToFocus={touchToFocus}
+                />
+              )}
+              {error && <Text>{error}</Text>}
+              <TouchableOpacity style={styles.button} onPress={this.toggleOptions}>
+                <Text style={styles.buttonText}>{showOptions ? '✕' : '☰'}</Text>
+              </TouchableOpacity>
+              <Text style={styles.plateText}>{plate}</Text>
+              <Text style={styles.confidenceText}>
+                {confidence ? confidence + '%' : ''}
+              </Text>
+              <Text style={styles.statusText}>
+                {status ? status : ''}
+              </Text>
+              {picture && (
+                <TouchableOpacity
+                  style={styles.pictureWrapper}
+                  onPress={this.onClosePicturePress}>
+                  <Image style={styles.picture} source={{ uri: picture }} />
+                </TouchableOpacity>
+              )}
+              {showOptions && (
+                <ScrollView style={styles.options}>
+                  <MySwitch
+                    title="Orientation"
+                    value={rotateMode}
+                    onValueChange={value => this.setState({ rotateMode: value })}
+                  />
+                  <MySwitch
+                    title="Torch"
+                    value={torchMode}
+                    onValueChange={value => this.setState({ torchMode: value })}
+                  />
+                  <MySwitch
+                    title="Show plate outline"
+                    value={showPlateOutline}
+                    onValueChange={value =>
+                      this.setState({ showPlateOutline: value })
+                    }
+                  />
+                  <MySwitch
+                    title="Touch to focus"
+                    value={touchToFocus}
+                    onValueChange={value => this.setState({ touchToFocus: value })}
+                  />
+                  <MyPicker
+                    title="Color"
+                    selectedValue={plateOutlineColor}
+                    onValueChange={value =>
+                      this.setState({ plateOutlineColor: value })
+                    }
+                    values={colorOptions}
+                  />
+                  <MyPicker
+                    title="Zoom"
+                    selectedValue={zoom}
+                    onValueChange={value => this.setState({ zoom: value })}
+                    values={zoomOptions}
+                  />
+                  <MyPicker
+                    title="Quality"
+                    selectedValue={captureQuality}
+                    onValueChange={value => this.setState({ captureQuality: value })}
+                    values={qualityOptions}
+                  />
+                  <MyPicker
+                    title="Aspect"
+                    selectedValue={aspect}
+                    onValueChange={value => this.setState({ aspect: value })}
+                    values={aspectOptions}
+                  />
+                </ScrollView>
+              )}
+              <ButtonGroup
+                onPress={this.updateIndex}
+                selectedIndex={selectedIndex}
+                buttons={buttons}
+                containerStyle={{height: 60}} />
+          </View>
+        )
+      }
+};
